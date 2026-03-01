@@ -31,13 +31,11 @@ bun install
 
 ### 配置环境变量
 
-复制 `.env.example` 并填写：
+生产环境需复制 `.env.example` 并填写必填项：
 
 ```bash
 cp .env.example .env.local
 ```
-
-必填项：
 
 | 变量 | 说明 |
 |------|------|
@@ -47,9 +45,6 @@ cp .env.example .env.local
 ### 启动
 
 ```bash
-# 开发模式（数据库迁移在首次请求时自动执行）
-bun dev
-
 # 生产构建
 bun run build
 bun start
@@ -60,6 +55,32 @@ bun start
 首次启动后访问 `http://localhost:3000/setup` 创建管理员账号。
 
 管理后台入口：`http://localhost:3000/admin`
+
+## 开发
+
+### 数据库
+
+项目提供 `docker-compose.yml`，通过 Docker Compose 在本地运行 PostgreSQL（**仅供开发使用，不建议用于生产**）：
+
+```bash
+docker compose up -d
+```
+
+### 环境变量
+
+`.env.development` 已预置与 Docker Compose 数据库匹配的连接信息，开箱即用，无需额外配置。
+
+如需覆盖某个变量，在 `.env.local`（gitignored）中设置即可，优先级高于 `.env.development`。
+
+### 启动开发服务器
+
+```bash
+bun dev
+```
+
+数据库迁移会在首次请求时通过 `instrumentation.ts` 自动执行。
+
+首次运行后访问 `http://localhost:3000/setup` 创建管理员账号。
 
 ## 数据库迁移
 
