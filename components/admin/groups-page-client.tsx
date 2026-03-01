@@ -50,14 +50,9 @@ import {
   IconPencil,
   IconSearch,
   IconTrash,
-  IconSortAscending,
-  IconSortDescending,
 } from "@tabler/icons-react"
 
 const PAGE_SIZE = 20
-
-type SortField = "createdAt" | "alias" | "status"
-type SortDir = "asc" | "desc"
 
 interface GroupsPageClientProps {
   groups: Group[]
@@ -84,8 +79,6 @@ export function GroupsPageClient({
   const [platformFilter, setPlatformFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [sortField, setSortField] = useState<SortField>("createdAt")
-  const [sortDir, setSortDir] = useState<SortDir>("desc")
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -115,19 +108,9 @@ export function GroupsPageClient({
     setSelectedIds(new Set())
   }
 
-  function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    } else {
-      setSortField(field)
-      setSortDir("asc")
-    }
-    resetView()
-  }
-
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase()
-    let result = groups.filter((g) => {
+    return groups.filter((g) => {
       if (q && !g.alias.toLowerCase().includes(q) && !(g.name?.toLowerCase().includes(q))) return false
       if (platformFilter !== "all" && g.platform !== platformFilter) return false
       if (categoryFilter === "none") {
@@ -141,23 +124,7 @@ export function GroupsPageClient({
       }
       return true
     })
-
-    result = [...result].sort((a, b) => {
-      let cmp = 0
-      if (sortField === "createdAt") {
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      } else if (sortField === "alias") {
-        cmp = a.alias.localeCompare(b.alias)
-      } else if (sortField === "status") {
-        const sa = getEffectiveStatus(a, nowDate)
-        const sb = getEffectiveStatus(b, nowDate)
-        cmp = sa.localeCompare(sb)
-      }
-      return sortDir === "asc" ? cmp : -cmp
-    })
-
-    return result
-  }, [groups, search, platformFilter, categoryFilter, statusFilter, sortField, sortDir, nowDate])
+  }, [groups, search, platformFilter, categoryFilter, statusFilter, nowDate])
 
   const pageGroups = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE
@@ -204,8 +171,6 @@ export function GroupsPageClient({
     () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
     [categories]
   )
-
-  const SortIcon = sortDir === "asc" ? IconSortAscending : IconSortDescending
 
   return (
     <div className="p-6">
@@ -344,15 +309,7 @@ export function GroupsPageClient({
               </TableHead>
               <TableHead className="w-20">状态</TableHead>
               <TableHead className="w-16">平台</TableHead>
-              <TableHead>
-                <button
-                  onClick={() => toggleSort("alias")}
-                  className="flex items-center gap-1 hover:text-foreground"
-                >
-                  别名
-                  {sortField === "alias" && <SortIcon size={14} />}
-                </button>
-              </TableHead>
+              <TableHead>别名</TableHead>
               <TableHead>名称</TableHead>
               {categories.length > 0 && <TableHead className="w-28">分组</TableHead>}
               <TableHead className="w-32">群号</TableHead>

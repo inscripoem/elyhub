@@ -104,6 +104,28 @@ export async function deleteCategory(id: string) {
   return { success: true }
 }
 
+export async function reorderCategories(orderedIds: string[]) {
+  const session = await requireAdmin()
+  if (!session) redirect("/admin/login")
+
+  const parsed = z.array(z.string().uuid()).safeParse(orderedIds)
+  if (!parsed.success) return { error: "无效的分组 ID 列表" }
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < parsed.data.length; i++) {
+      await tx
+        .update(groupCategories)
+        .set({ sortOrder: i + 1 })
+        .where(eq(groupCategories.id, parsed.data[i]))
+    }
+  })
+
+  revalidatePath("/")
+  revalidatePath("/admin/groups")
+  revalidatePath("/admin/groups/categories")
+  return { success: true }
+}
+
 export async function reorderCategory(id: string, direction: "up" | "down") {
   const session = await requireAdmin()
   if (!session) redirect("/admin/login")

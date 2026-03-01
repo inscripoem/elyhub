@@ -2,7 +2,22 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { deleteCategory, reorderCategory } from "@/lib/actions/group-categories"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { deleteCategory, reorderCategories } from "@/lib/actions/group-categories"
 import { CategoryForm } from "@/components/admin/category-form"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,11 +45,79 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { IconPencil, IconTrash, IconChevronUp, IconChevronDown, IconPlus } from "@tabler/icons-react"
+import { IconPencil, IconTrash, IconGripVertical, IconPlus } from "@tabler/icons-react"
 import type { GroupCategory } from "@/db/schema"
 
 interface CategoryListClientProps {
   categories: GroupCategory[]
+}
+
+interface SortableRowProps {
+  cat: GroupCategory
+  onEdit: (cat: GroupCategory) => void
+  onDelete: (id: string) => void
+  isPending: boolean
+}
+
+function SortableRow({ cat, onEdit, onDelete, isPending }: SortableRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: cat.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="w-10">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1"
+          aria-label="拖拽排序"
+        >
+          <IconGripVertical size={16} />
+        </button>
+      </TableCell>
+      <TableCell className="font-medium">{cat.name}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {cat.description ?? "—"}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="icon" onClick={() => onEdit(cat)}>
+            <IconPencil size={16} />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" disabled={isPending}>
+                <IconTrash size={16} />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>删除分组</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要删除分组「{cat.name}」吗？该分组下的群聊不会被删除，仅取消分组关联。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(cat.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  删除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </TableCell>
+    </TableRow>
+  )
 }
 
 export function CategoryListClient({ categories }: CategoryListClientProps) {
@@ -42,8 +125,11 @@ export function CategoryListClient({ categories }: CategoryListClientProps) {
   const [isPending, startTransition] = useTransition()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<GroupCategory | null>(null)
+  const [items, setItems] = useState(
+    [...categories].sort((a, b) => a.sortOrder - b.sortOrder)
+  )
 
-  const sorted = [...categories].sort((a, b) => a.sortOrder - b.sortOrder)
+  const sensors = useSensors(useSensor(PointerSensor))
 
   function openAdd() {
     setEditingCategory(null)
@@ -60,10 +146,17 @@ export function CategoryListClient({ categories }: CategoryListClientProps) {
     router.refresh()
   }
 
-  function handleReorder(id: string, direction: "up" | "down") {
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = items.findIndex((c) => c.id === active.id)
+    const newIndex = items.findIndex((c) => c.id === over.id)
+    const reordered = arrayMove(items, oldIndex, newIndex)
+
+    setItems(reordered)
     startTransition(async () => {
-      await reorderCategory(id, direction)
-      router.refresh()
+      await reorderCategories(reordered.map((c) => c.id))
     })
   }
 
@@ -84,7 +177,7 @@ export function CategoryListClient({ categories }: CategoryListClientProps) {
         </Button>
       </div>
 
-      {sorted.length === 0 ? (
+      {items.length === 0 ? (
         <div className="border rounded-lg py-12 text-center text-muted-foreground text-sm">
           暂无分组，
           <button onClick={openAdd} className="text-primary underline">
@@ -92,85 +185,40 @@ export function CategoryListClient({ categories }: CategoryListClientProps) {
           </button>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="w-20">顺序</TableHead>
-                <TableHead>分组名称</TableHead>
-                <TableHead>描述</TableHead>
-                <TableHead className="w-24 text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((cat, idx) => (
-                <TableRow key={cat.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        disabled={idx === 0 || isPending}
-                        onClick={() => handleReorder(cat.id, "up")}
-                      >
-                        <IconChevronUp size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        disabled={idx === sorted.length - 1 || isPending}
-                        onClick={() => handleReorder(cat.id, "down")}
-                      >
-                        <IconChevronDown size={14} />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{cat.name}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {cat.description ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(cat)}
-                      >
-                        <IconPencil size={16} />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <IconTrash size={16} />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>删除分组</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              确定要删除分组「{cat.name}」吗？该分组下的群聊不会被删除，仅取消分组关联。
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>取消</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(cat.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              删除
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-10" />
+                  <TableHead>分组名称</TableHead>
+                  <TableHead>描述</TableHead>
+                  <TableHead className="w-24 text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                <SortableContext
+                  items={items.map((c) => c.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {items.map((cat) => (
+                    <SortableRow
+                      key={cat.id}
+                      cat={cat}
+                      onEdit={openEdit}
+                      onDelete={handleDelete}
+                      isPending={isPending}
+                    />
+                  ))}
+                </SortableContext>
+              </TableBody>
+            </Table>
+          </div>
+        </DndContext>
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
