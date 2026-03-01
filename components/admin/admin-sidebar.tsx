@@ -10,6 +10,7 @@ import {
   IconLayoutDashboard,
   IconLogout,
   IconWorld,
+  IconFolder,
 } from "@tabler/icons-react"
 type AuthUser = {
   id: string
@@ -19,9 +20,10 @@ type AuthUser = {
 }
 
 const navItems = [
-  { href: "/admin/dashboard", label: "Worker 状态", icon: IconLayoutDashboard },
-  { href: "/admin/groups", label: "群聊管理", icon: IconUsers },
-  { href: "/admin/settings", label: "设置", icon: IconSettings },
+  { href: "/admin/dashboard", label: "Worker 状态", icon: IconLayoutDashboard, exact: false },
+  { href: "/admin/groups", label: "群聊管理", icon: IconUsers, exact: true },
+  { href: "/admin/groups/categories", label: "分组管理", icon: IconFolder, exact: false },
+  { href: "/admin/settings", label: "设置", icon: IconSettings, exact: false },
 ]
 
 export function AdminSidebar({ user }: { user: AuthUser }) {
@@ -34,6 +36,11 @@ export function AdminSidebar({ user }: { user: AuthUser }) {
     router.refresh()
   }
 
+  function isActive(href: string, exact: boolean) {
+    if (exact) return pathname === href || pathname.startsWith(href + "/new") || (pathname.startsWith(href + "/") && !pathname.startsWith(href + "/categories"))
+    return pathname.startsWith(href)
+  }
+
   return (
     <aside className="w-56 border-r bg-sidebar flex flex-col">
       <div className="p-4 border-b">
@@ -44,13 +51,13 @@ export function AdminSidebar({ user }: { user: AuthUser }) {
       </div>
 
       <nav className="flex-1 p-2 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {navItems.map(({ href, label, icon: Icon, exact }) => (
           <Link
             key={href}
             href={href}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
-              pathname.startsWith(href)
+              isActive(href, exact)
                 ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                 : "text-sidebar-foreground hover:bg-sidebar-accent/50"
             )}

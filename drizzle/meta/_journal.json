@@ -8,6 +8,13 @@
       "when": 1772335363658,
       "tag": "0000_last_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772379986265,
+      "tag": "0001_easy_xorn",
+      "breakpoints": true
     }
   ]
 }

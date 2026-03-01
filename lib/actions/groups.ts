@@ -5,7 +5,7 @@ import { groups } from "@/db/schema"
 import { requireAdmin } from "@/lib/auth-server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
 const groupFormSchema = z
@@ -18,6 +18,12 @@ const groupFormSchema = z
     joinLink: z.string().optional(),
     adminQq: z.string().optional(),
     useWorker: z.coerce.boolean().nullable().optional(),
+    categoryId: z
+      .preprocess(
+        (v) => (v === "" || v === null || v === undefined ? null : v),
+        z.string().uuid().nullable()
+      )
+      .optional(),
     expireAt: z.string().optional(),
   })
   .refine(
@@ -37,6 +43,7 @@ export async function createGroup(formData: FormData) {
     qqNumber: formData.get("qqNumber") || undefined,
     joinLink: formData.get("joinLink") || undefined,
     adminQq: formData.get("adminQq") || undefined,
+    categoryId: formData.get("categoryId") ?? null,
     useWorker:
       formData.get("useWorker") === "true"
         ? true
@@ -51,7 +58,7 @@ export async function createGroup(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { platform, alias, name, avatarUrl, qqNumber, joinLink, adminQq, useWorker, expireAt } =
+  const { platform, alias, name, avatarUrl, qqNumber, joinLink, adminQq, useWorker, categoryId, expireAt } =
     parsed.data
 
   await db.insert(groups).values({
@@ -62,6 +69,7 @@ export async function createGroup(formData: FormData) {
     qqNumber: platform === "qq" ? qqNumber : undefined,
     joinLink: joinLink || undefined,
     adminQq: platform === "qq" ? adminQq : undefined,
+    categoryId: categoryId ?? null,
     useWorker: useWorker ?? null,
     expireAt: expireAt ? new Date(expireAt) : undefined,
   })
@@ -83,6 +91,7 @@ export async function updateGroup(id: string, formData: FormData) {
     qqNumber: formData.get("qqNumber") || undefined,
     joinLink: formData.get("joinLink") || undefined,
     adminQq: formData.get("adminQq") || undefined,
+    categoryId: formData.get("categoryId") ?? null,
     useWorker:
       formData.get("useWorker") === "true"
         ? true
@@ -97,7 +106,7 @@ export async function updateGroup(id: string, formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { platform, alias, name, avatarUrl, qqNumber, joinLink, adminQq, useWorker, expireAt } =
+  const { platform, alias, name, avatarUrl, qqNumber, joinLink, adminQq, useWorker, categoryId, expireAt } =
     parsed.data
 
   await db
@@ -110,6 +119,7 @@ export async function updateGroup(id: string, formData: FormData) {
       qqNumber: platform === "qq" ? (qqNumber ?? null) : null,
       joinLink: joinLink || null,
       adminQq: platform === "qq" ? (adminQq ?? null) : null,
+      categoryId: categoryId ?? null,
       useWorker: useWorker ?? null,
       expireAt: expireAt ? new Date(expireAt) : null,
     })
@@ -128,4 +138,23 @@ export async function deleteGroup(id: string) {
 
   revalidatePath("/")
   revalidatePath("/admin/groups")
+}
+
+export async function deleteGroups(ids: string[]) {
+  const session = await requireAdmin()
+  if (!session) redirect("/admin/login")
+
+  const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(ids)
+  if (!parsed.success) {
+    return { error: "无效的群聊 ID 列表" }
+  }
+
+  const deleted = await db
+    .delete(groups)
+    .where(inArray(groups.id, parsed.data))
+    .returning({ id: groups.id })
+
+  revalidatePath("/")
+  revalidatePath("/admin/groups")
+  return { success: true, deletedCount: deleted.length }
 }

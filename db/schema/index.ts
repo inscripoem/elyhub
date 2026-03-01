@@ -1,4 +1,5 @@
 export * from "./enums"
+export * from "./group-categories"
 export * from "./groups"
 export * from "./settings"
 export * from "./worker-registrations"

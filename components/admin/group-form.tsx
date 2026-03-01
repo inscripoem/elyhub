@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { createGroup, updateGroup } from "@/lib/actions/groups"
 import { isWorkerOnline } from "@/lib/worker-utils"
-import type { Group, Settings, WorkerRegistration } from "@/db/schema"
+import type { Group, GroupCategory, Settings, WorkerRegistration } from "@/db/schema"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,6 +22,7 @@ type Platform = "qq" | "wechat" | "other"
 
 interface GroupFormProps {
   group?: Group
+  categories?: GroupCategory[]
   settings: Pick<Settings, "qqWorkerEnabled" | "wechatWorkerEnabled">
   workerRegistrations: Record<string, WorkerRegistration>
   onSuccess?: () => void
@@ -30,6 +31,7 @@ interface GroupFormProps {
 
 export function GroupForm({
   group,
+  categories = [],
   settings,
   workerRegistrations,
   onSuccess,
@@ -44,6 +46,9 @@ export function GroupForm({
   )
   const [useWorker, setUseWorker] = useState<boolean | null>(
     group?.useWorker ?? null
+  )
+  const [categoryId, setCategoryId] = useState<string>(
+    group?.categoryId ?? "none"
   )
 
   const globalEnabled =
@@ -72,6 +77,7 @@ export function GroupForm({
       useWorker === null ? "null" : String(useWorker)
     )
     formData.set("platform", platform)
+    formData.set("categoryId", categoryId === "none" ? "" : categoryId)
 
     startTransition(async () => {
       const result = group
@@ -120,6 +126,26 @@ export function GroupForm({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Category */}
+      {categories.length > 0 && (
+        <div className="space-y-2">
+          <Label>分组</Label>
+          <Select value={categoryId} onValueChange={setCategoryId} name="categoryId">
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">不分组</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Alias - always editable */}
       <div className="space-y-2">

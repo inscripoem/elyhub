@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
@@ -61,6 +62,19 @@ export function SettingsForm({ settings }: { settings: Settings | undefined }) {
               defaultValue={settings?.siteAvatarUrl ?? ""}
               placeholder="https://example.com/avatar.png"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="siteAnnouncement">网站公告</Label>
+            <Textarea
+              id="siteAnnouncement"
+              name="siteAnnouncement"
+              defaultValue={settings?.siteAnnouncement ?? ""}
+              placeholder="留空则不显示公告"
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              公告将显示在主页标题下方，支持换行
+            </p>
           </div>
         </CardContent>
       </Card>

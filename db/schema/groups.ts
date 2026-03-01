@@ -7,11 +7,15 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { platformEnum, statusEnum } from "./enums"
+import { groupCategories } from "./group-categories"
 
 export const groups = pgTable(
   "groups",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    categoryId: uuid("category_id").references(() => groupCategories.id, {
+      onDelete: "set null",
+    }),
     platform: platformEnum("platform").notNull(),
     alias: text("alias").notNull(),
     name: text("name"),
@@ -31,6 +35,7 @@ export const groups = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
+    index("groups_category_idx").on(t.categoryId),
     index("groups_platform_idx").on(t.platform),
     index("groups_status_idx").on(t.status),
     index("groups_expire_at_idx").on(t.expireAt),

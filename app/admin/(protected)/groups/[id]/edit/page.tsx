@@ -1,16 +1,17 @@
 import { db } from "@/lib/db"
-import { groups, settings, workerRegistrations } from "@/db/schema"
+import { groups, groupCategories, settings, workerRegistrations } from "@/db/schema"
+import { asc, eq } from "drizzle-orm"
 import { GroupForm } from "@/components/admin/group-form"
 import { notFound } from "next/navigation"
-import { eq } from "drizzle-orm"
 
 type Params = { params: Promise<{ id: string }> }
 
 export default async function EditGroupPage({ params }: Params) {
   const { id } = await params
 
-  const [group, siteSettings, registrations] = await Promise.all([
+  const [group, allCategories, siteSettings, registrations] = await Promise.all([
     db.select().from(groups).where(eq(groups.id, id)).then((r) => r[0]),
+    db.select().from(groupCategories).orderBy(asc(groupCategories.sortOrder)),
     db.select().from(settings).limit(1),
     db.select().from(workerRegistrations),
   ])
@@ -29,7 +30,12 @@ export default async function EditGroupPage({ params }: Params) {
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-6">编辑群聊</h1>
-      <GroupForm group={group} settings={s} workerRegistrations={workerRegsMap} />
+      <GroupForm
+        group={group}
+        categories={allCategories}
+        settings={s}
+        workerRegistrations={workerRegsMap}
+      />
     </div>
   )
 }

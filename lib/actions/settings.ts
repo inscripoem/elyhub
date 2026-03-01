@@ -11,6 +11,7 @@ import { z } from "zod"
 const settingsSchema = z.object({
   siteTitle: z.string().min(1, "网站名称不能为空"),
   siteAvatarUrl: z.string().url().optional().or(z.literal("")),
+  siteAnnouncement: z.string().optional(),
   qqWorkerEnabled: z.coerce.boolean(),
   wechatWorkerEnabled: z.coerce.boolean(),
 })
@@ -22,6 +23,7 @@ export async function updateSettings(formData: FormData) {
   const parsed = settingsSchema.safeParse({
     siteTitle: formData.get("siteTitle"),
     siteAvatarUrl: formData.get("siteAvatarUrl") || "",
+    siteAnnouncement: formData.get("siteAnnouncement") || undefined,
     qqWorkerEnabled: formData.get("qqWorkerEnabled") === "true",
     wechatWorkerEnabled: formData.get("wechatWorkerEnabled") === "true",
   })
@@ -38,6 +40,7 @@ export async function updateSettings(formData: FormData) {
     .set({
       siteTitle: parsed.data.siteTitle,
       siteAvatarUrl: parsed.data.siteAvatarUrl || null,
+      siteAnnouncement: parsed.data.siteAnnouncement || null,
       qqWorkerEnabled: parsed.data.qqWorkerEnabled,
       wechatWorkerEnabled: parsed.data.wechatWorkerEnabled,
     })
