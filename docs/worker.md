@@ -89,6 +89,7 @@ Worker 启动时及每次循环时调用，上报存活状态与能力声明。E
 | `"name"` | `name` | 能获取群的实际名称 |
 | `"avatar_url"` | `avatarUrl` | 能获取群头像 URL |
 | `"join_link"` | `joinLink` | 能获取或刷新加群链接 |
+| `"expire_at"` | `expireAt` | 能获取或更新群状态的过期时间 |
 
 声明的 capabilities 会显示在管理后台 Dashboard，并使对应字段在编辑群时变为只读（若该群已启用 Worker）。
 
@@ -267,9 +268,19 @@ expireAt = 当前时间 + expectedIntervalSeconds + 300 秒（5 分钟宽限）
 
 ### 微信平台 — 绝对过期模式
 
-微信群通过二维码加群，链接有固定有效期。管理员在后台录入二维码的物理过期时间后，ElyHub 会在过期后自动将状态降级为 `INVALID`。
+微信群通过二维码加群，链接有固定有效期。`expireAt` 表示二维码的物理过期时间——到期后 ElyHub 自动将展示状态降级为 `INVALID`，无论数据库中存储的 `status` 是什么。
 
-微信 Worker（如果存在）**通常不需要管理 `expireAt`**——该值由管理员填写。Worker 可以上报 `status` 变化（例如检测到群链接已失效），但不应覆盖管理员设置的 `expireAt`。
+`expireAt` 的来源可以是管理员手动录入，也可以由微信 Worker 解析上报。Worker 能写入的所有字段（见下方"字段写入权限"）均可在任何时候通过 PATCH / batch 接口提交，包括 `expireAt`。
+
+**典型场景：二维码上传型 Worker**
+
+用户将加群二维码图片上传给 Worker，Worker 识别二维码后提取：
+
+- `name`：群名称（二维码通常含群标题）
+- `joinLink`：加群链接
+- `expireAt`：二维码的物理过期时间
+
+一次性写入 ElyHub，无需管理员逐字段录入。后续若二维码更新，重新上传即可覆盖。
 
 ---
 
@@ -283,7 +294,7 @@ Worker 只能写入以下字段（通过 PATCH / batch 接口）：
 | `name` | `"name"` |
 | `avatarUrl` | `"avatar_url"` |
 | `joinLink` | `"join_link"` |
-| `expireAt` | 无需声明 |
+| `expireAt` | `"expire_at"` |
 
 以下字段由管理员管理，Worker **无法修改**：
 
@@ -358,4 +369,48 @@ def main():
 
         heartbeat()
         sleep(INTERVAL)
+```
+
+以下为微信二维码上传型 Worker 的最小可行实现逻辑：
+
+```python
+BASE_URL = "https://elyhub.example.com"
+HEADERS = {
+    "Authorization": "Bearer <WECHAT_WORKER_SECRET>",
+    "X-Worker-Platform": "wechat",
+    "Content-Type": "application/json",
+}
+
+
+def heartbeat():
+    post("/api/worker/heartbeat", {
+        "capabilities": ["name", "join_link", "expire_at"],
+        # 微信 Worker 无需定期轮询，心跳间隔可设较大值
+        "expectedIntervalSeconds": 3600,
+    })
+
+
+def handle_qr_upload(group_id: str, image: bytes):
+    """用户上传二维码图片时调用"""
+    qr = parse_qr_code(image)  # 你的二维码解析实现
+    patch(f"/api/worker/groups/{group_id}", {
+        "name": qr.group_name,
+        "joinLink": qr.join_url,
+        "expireAt": qr.expire_at.isoformat(),  # 二维码物理过期时间
+        "status": "ACTIVE",
+    })
+
+
+def main():
+    config = get("/api/worker/config")
+    if not config["enabled"]:
+        return
+
+    heartbeat()
+
+    # 微信 Worker 为被动触发型，主循环仅维持心跳
+    while True:
+        heartbeat()
+        sleep(3600)
+        # 二维码上传通过 handle_qr_upload() 独立处理
 ```
