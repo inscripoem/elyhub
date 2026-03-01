@@ -35,25 +35,27 @@ X-Worker-Platform: qq | wechat
 ## 推荐工作循环
 
 ```
-启动
+心跳进程（常驻）：
 │
 ├─ 1. GET /api/worker/config
-│      检查平台是否已被管理员启用
-│      enabled=false → 等待后重试，不执行后续操作
-│
-├─ 2. POST /api/worker/heartbeat
-│      上报 capabilities 和心跳间隔，完成注册
-│
-├─ 3. GET /api/worker/groups/partial?missing=name,avatar_url,...
-│      获取尚缺信息的群，进行初始填充
+│      enabled=false → 跳过心跳，等待后重试
 │
 └─ 循环（每 expectedIntervalSeconds 秒）：
-       ├─ POST /api/worker/heartbeat        保活
-       ├─ 扫描各群，判断状态
-       └─ POST /api/worker/groups/batch     批量写回结果
+       └─ POST /api/worker/heartbeat        保活 + 声明 capabilities
+
+群同步任务（由 cron 触发）：
+│
+├─ 1. GET /api/worker/config
+│      enabled=false → 退出，不执行同步
+│
+├─ 2. GET /api/worker/groups/partial?missing=name,avatar_url,...
+│      初始填充：补全从未同步过的群信息
+│
+└─ 3. 扫描各群，判断状态
+       └─ POST /api/worker/groups/batch     批量写回（含 expireAt = 下次 cron 时间）
 ```
 
-心跳不连续（超过 `expectedIntervalSeconds + 300` 秒无心跳）时，ElyHub 会将该平台所有 QQ 群的展示状态降级为 `UNKNOWN`。
+心跳不连续（超过 `expectedIntervalSeconds + 300` 秒无心跳）时，ElyHub 会将该平台 Worker 标记为离线。群数据的新鲜度由 `expireAt` 独立控制：若群同步任务停止运行，`expireAt` 到期后该群展示状态自动降级为 `UNKNOWN`。
 
 ---
 
@@ -247,17 +249,31 @@ GET /api/worker/groups/partial?platform=qq&missing=name,avatar_url
 
 ## 状态机与 `expireAt` 语义
 
+### `status` 字段语义
+
+Worker 上报的 `status` 表达的是 Worker **主动判断的结论**：
+
+| 值 | 含义 |
+|----|------|
+| `ACTIVE` | Worker 确认群当前可加入 |
+| `INVALID` | Worker 确认群当前不可加入（链接失效、群已解散等） |
+| `UNKNOWN` | Worker 无法判断当前状态（查询失败、结果不确定等） |
+
+`UNKNOWN` 是一个合法的主动上报值，表示"我查过了，但不确定"，有别于"我还没查"或"我的数据已经过期"。ElyHub 也会在读取时根据 `expireAt` **推导出** `UNKNOWN`（见下方各平台说明），推导结果与数据库存储的 `status` 无关。
+
+> **重要：** 数据库中的 `status` 字段始终存储 **Worker 最后一次上报的值**，不随时间自动变化。ElyHub 公开页和管理后台展示的是经过 `expireAt` 推导后的**展示态**，两者可能不同。直接查询数据库或通过 Worker API 读取的 `status` 均为原始上报值，不代表当前实际展示状态。
+
 ### QQ 平台 — 心跳模式
 
-Worker 主动确认群存活，ElyHub 通过 `expireAt` 判断信息是否新鲜。
+Worker 通过定期同步群数据并设置 `expireAt` 来表达"此数据在有效期内"。`expireAt` 表示本���同步结果的有效截止时间，与心跳间隔（`expectedIntervalSeconds`）相互独立——心跳用于判断 Worker 是否在线，`expireAt` 用于判断群数据是否新鲜。
 
-**Worker 每次更新群时，应将 `expireAt` 设为：**
+**Worker 每次同步群数据时，应将 `expireAt` 设为下次预计同步的时间加上适当宽限期：**
 
 ```
-expireAt = 当前时间 + expectedIntervalSeconds + 300 秒（5 分钟宽限）
+expireAt = 当前时间 + 本次到下次同步的预计间隔 + 宽限期
 ```
 
-若 Worker 停止心跳，`expireAt` 会自然过期，ElyHub 自动将展示状态降级为 `UNKNOWN`（无论数据库中存储的 `status` 是什么）。
+若 Worker 停止同步某个群的数据，`expireAt` 会自然过期，ElyHub 自动将该群的展示状态降级为 `UNKNOWN`（无论数据库中存储的 `status` 是什么）。
 
 | Worker 上报的 `status` | `expireAt` 是否有效 | 公开页展示状态 |
 |----------------------|-------------------|-------------|
@@ -313,27 +329,35 @@ HEADERS = {
     "X-Worker-Platform": "qq",
     "Content-Type": "application/json",
 }
-INTERVAL = 60  # 秒，与 expectedIntervalSeconds 保持一致
+HEARTBEAT_INTERVAL = 60  # 心跳间隔（秒）
 
 
 def heartbeat():
     post("/api/worker/heartbeat", {
-        "capabilities": ["status", "name", "avatar_url"],
-        "expectedIntervalSeconds": INTERVAL,
+        "capabilities": ["status", "name", "avatar_url", "expire_at"],
+        "expectedIntervalSeconds": HEARTBEAT_INTERVAL,
     })
 
 
-def main():
-    # 1. 检查是否启用
+# ── 心跳进程（常驻，每 HEARTBEAT_INTERVAL 秒调用一次）─────────────────
+def heartbeat_loop():
+    while True:
+        config = get("/api/worker/config")
+        if config["enabled"]:
+            heartbeat()
+        sleep(HEARTBEAT_INTERVAL)
+
+
+# ── 群同步任务（由外部 cron 触发，例如每天凌晨）──────────────────────
+def sync_groups(next_run_at: datetime):
+    """
+    next_run_at: 下次 cron 计划执行时间，用于计算 expireAt
+    """
     config = get("/api/worker/config")
     if not config["enabled"]:
-        print("未启用，退出")
         return
 
-    # 2. 注册心跳
-    heartbeat()
-
-    # 3. 初始填充缺失信息
+    # 初始填充缺失信息（仅处理从未同步过的群）
     partial = get("/api/worker/groups/partial?platform=qq&missing=name,avatar_url")
     for group in partial["data"]:
         info = fetch_qq_group_info(group["qqNumber"])  # 你的实现
@@ -343,32 +367,26 @@ def main():
                 "avatarUrl": info.avatar_url,
             })
 
-    # 4. 主循环
-    while True:
-        groups = get("/api/worker/groups?platform=qq")["data"]
+    # 全量同步状态
+    groups = get("/api/worker/groups?platform=qq")["data"]
+    updates = []
+    for group in groups:
+        if group["useWorker"] == False:
+            continue  # 该群明确禁用 Worker，跳过
 
-        updates = []
-        now = unix_timestamp()
-        for group in groups:
-            if group["useWorker"] == False:
-                continue  # 该群明确禁用 Worker，跳过
+        info = fetch_qq_group_info(group["qqNumber"])
+        updates.append({
+            "id": group["id"],
+            "status": "ACTIVE" if info else "INVALID",
+            "name": info.name if info else None,
+            "avatarUrl": info.avatar_url if info else None,
+            # expireAt 设为下次同步时间，届时若未更新则自动降级为 UNKNOWN
+            "expireAt": next_run_at.isoformat(),
+        })
 
-            info = fetch_qq_group_info(group["qqNumber"])
-            updates.append({
-                "id": group["id"],
-                "status": "ACTIVE" if info else "INVALID",
-                "name": info.name if info else None,
-                "avatarUrl": info.avatar_url if info else None,
-                # expireAt = 当前时间 + 间隔 + 5 分钟宽限
-                "expireAt": iso8601(now + INTERVAL + 300),
-            })
-
-        # 批量写回（最多 100 条，超出自行分批）
-        for chunk in chunks(updates, 100):
-            post("/api/worker/groups/batch", chunk)
-
-        heartbeat()
-        sleep(INTERVAL)
+    # 批量写回（最多 100 条，超出自行分批）
+    for chunk in chunks(updates, 100):
+        post("/api/worker/groups/batch", chunk)
 ```
 
 以下为微信二维码上传型 Worker 的最小可行实现逻辑：
