@@ -13,14 +13,14 @@ export default async function NewGroupPage() {
     wechatWorkerEnabled: false,
   }
 
-  const workerCapabilities = Object.fromEntries(
-    registrations.map((r) => [r.platform, r.capabilities as string[]])
+  const workerRegsMap = Object.fromEntries(
+    registrations.map((r) => [r.platform, r])
   )
 
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-6">添加群聊</h1>
-      <GroupForm settings={s} workerCapabilities={workerCapabilities} />
+      <GroupForm settings={s} workerRegistrations={workerRegsMap} />
     </div>
   )
 }

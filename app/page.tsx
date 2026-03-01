@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/table"
 import { IconExternalLink } from "@tabler/icons-react"
 import type { Metadata } from "next"
+import { checkInitialized } from "@/lib/actions/setup"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -24,6 +26,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
+  const initialized = await checkInitialized()
+  if (!initialized) redirect("/setup")
+
   const [allGroups, siteSettings] = await Promise.all([
     db.select().from(groups).orderBy(groups.createdAt),
     db.select().from(settings).limit(1),
@@ -82,7 +87,7 @@ export default async function HomePage() {
                       <StatusBadge status={effectiveStatus} />
                     </TableCell>
                     <TableCell>
-                      <PlatformIcon platform={group.platform} />
+                      <PlatformIcon platform={group.platform} showLabel />
                     </TableCell>
                     <TableCell>
                       {group.avatarUrl ? (

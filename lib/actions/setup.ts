@@ -1,10 +1,11 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { settings } from "@/db/schema"
+import { settings, user } from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { z } from "zod"
+import { eq } from "drizzle-orm"
 
 const setupSchema = z.object({
   adminName: z.string().min(1),
@@ -46,12 +47,8 @@ export async function runSetup(formData: FormData) {
   })
 
   if (result.user) {
-    // Promote to admin role
-    const { headers } = await import("next/headers")
-    await auth.api.setRole({
-      body: { userId: result.user.id, role: "admin" },
-      headers: await headers(),
-    })
+    // Promote to admin role directly via DB (auth.api.setRole requires admin session)
+    await db.update(user).set({ role: "admin" }).where(eq(user.id, result.user.id))
   }
 
   redirect("/admin")

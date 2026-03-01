@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { createGroup, updateGroup } from "@/lib/actions/groups"
-import type { Group, Settings } from "@/db/schema"
+import { isWorkerOnline } from "@/lib/worker-utils"
+import type { Group, Settings, WorkerRegistration } from "@/db/schema"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,41 +16,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { IconLock } from "@tabler/icons-react"
+import { IconLock, IconAlertTriangle } from "@tabler/icons-react"
 
 type Platform = "qq" | "wechat" | "other"
 
 interface GroupFormProps {
   group?: Group
   settings: Pick<Settings, "qqWorkerEnabled" | "wechatWorkerEnabled">
-  workerCapabilities: Record<string, string[]>
-}
-
-function isFieldWorkerManaged(
-  useWorker: boolean | null,
-  platform: Platform,
-  field: string,
-  settings: GroupFormProps["settings"],
-  capabilities: Record<string, string[]>
-): boolean {
-  const globalEnabled =
-    platform === "qq"
-      ? settings.qqWorkerEnabled
-      : platform === "wechat"
-        ? settings.wechatWorkerEnabled
-        : false
-
-  const workerOn =
-    useWorker === true ? true : useWorker === false ? false : globalEnabled
-
-  if (!workerOn) return false
-  return capabilities[platform]?.includes(field) ?? false
+  workerRegistrations: Record<string, WorkerRegistration>
+  onSuccess?: () => void
+  onCancel?: () => void
 }
 
 export function GroupForm({
   group,
   settings,
-  workerCapabilities,
+  workerRegistrations,
+  onSuccess,
+  onCancel,
 }: GroupFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -69,17 +53,14 @@ export function GroupForm({
         ? settings.wechatWorkerEnabled
         : false
 
-  const effectiveWorker =
-    useWorker === null ? globalEnabled : useWorker
+  const effectiveWorker = useWorker === null ? globalEnabled : useWorker
 
-  function workerLocked(field: string) {
-    return isFieldWorkerManaged(
-      useWorker,
-      platform,
-      field,
-      settings,
-      workerCapabilities
-    )
+  const workerReg = workerRegistrations[platform] ?? null
+  const workerOnline = isWorkerOnline(workerReg)
+  const capabilities = (workerReg?.capabilities as string[]) ?? []
+
+  function workerLocked(field: string): boolean {
+    return effectiveWorker && workerOnline && capabilities.includes(field)
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -99,12 +80,28 @@ export function GroupForm({
 
       if (result?.error) {
         setError(result.error)
+        return
+      }
+      if (result?.success) {
+        if (onSuccess) {
+          onSuccess()
+        } else {
+          router.push("/admin/groups")
+        }
       }
     })
   }
 
+  function handleCancel() {
+    if (onCancel) {
+      onCancel()
+    } else {
+      router.push("/admin/groups")
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-lg">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {/* Platform */}
       <div className="space-y-2">
         <Label>平台</Label>
@@ -135,6 +132,48 @@ export function GroupForm({
           defaultValue={group?.alias}
           placeholder="显示名称"
           required
+        />
+      </div>
+
+      {/* Name - QQ only */}
+      {platform === "qq" && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="name">群名称</Label>
+            {workerLocked("name") && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <IconLock size={12} /> Worker 管理
+              </span>
+            )}
+          </div>
+          <Input
+            id="name"
+            name="name"
+            defaultValue={group?.name ?? ""}
+            placeholder="群的实际名称"
+            readOnly={workerLocked("name")}
+            className={workerLocked("name") ? "opacity-50 cursor-not-allowed" : ""}
+          />
+        </div>
+      )}
+
+      {/* Avatar URL - all platforms */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="avatarUrl">头像 URL</Label>
+          {workerLocked("avatar_url") && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <IconLock size={12} /> Worker 管理
+            </span>
+          )}
+        </div>
+        <Input
+          id="avatarUrl"
+          name="avatarUrl"
+          defaultValue={group?.avatarUrl ?? ""}
+          placeholder="https://..."
+          readOnly={workerLocked("avatar_url")}
+          className={workerLocked("avatar_url") ? "opacity-50 cursor-not-allowed" : ""}
         />
       </div>
 
@@ -207,23 +246,26 @@ export function GroupForm({
         </div>
       )}
 
-      {/* Use Worker - QQ or Wechat only */}
-      {(platform === "qq" || platform === "wechat") && globalEnabled && (
+      {/* Use Worker - QQ or Wechat only, always shown */}
+      {(platform === "qq" || platform === "wechat") && (
         <div className="space-y-2">
           <Label>Worker 同步</Label>
           <div className="flex items-center gap-3">
             <Switch
               checked={effectiveWorker}
               onCheckedChange={(checked) => setUseWorker(checked)}
+              disabled={!globalEnabled}
             />
             <span className="text-sm text-muted-foreground">
-              {useWorker === null
-                ? `跟随全局设置（当前：${globalEnabled ? "开启" : "关闭"}）`
-                : effectiveWorker
-                  ? "已开启 Worker 同步"
-                  : "已关闭 Worker 同步"}
+              {!globalEnabled
+                ? "全局未启用"
+                : useWorker === null
+                  ? `跟随全局设置（当前：${globalEnabled ? "开启" : "关闭"}）`
+                  : effectiveWorker
+                    ? "已开启 Worker 同步"
+                    : "已关闭 Worker 同步"}
             </span>
-            {useWorker !== null && (
+            {useWorker !== null && globalEnabled && (
               <button
                 type="button"
                 className="text-xs text-muted-foreground underline"
@@ -233,7 +275,18 @@ export function GroupForm({
               </button>
             )}
           </div>
-          {effectiveWorker && (
+
+          {/* Offline warning */}
+          {effectiveWorker && !workerOnline && globalEnabled && (
+            <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md p-2.5">
+              <IconAlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Worker 当前离线，手动修改的内容在 Worker 重新上线后将被覆盖
+              </span>
+            </div>
+          )}
+
+          {effectiveWorker && workerOnline && (
             <p className="text-xs text-muted-foreground">
               开启后，Worker 将自动同步名称、头像等字段
             </p>
@@ -241,31 +294,17 @@ export function GroupForm({
         </div>
       )}
 
-      {/* Worker-managed readonly fields info */}
-      {(workerLocked("name") || workerLocked("avatar_url")) && (
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
-          <span className="font-medium">Worker 管理字段：</span>
-          {[
-            workerLocked("name") && "名称",
-            workerLocked("avatar_url") && "头像",
-            workerLocked("join_link") && "加群链接",
-          ]
-            .filter(Boolean)
-            .join("、")}
-          由 Worker 自动更新，不可手动编辑
-        </div>
-      )}
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 pt-2">
         <Button type="submit" disabled={isPending}>
           {isPending ? "保存中..." : group ? "保存修改" : "创建群聊"}
         </Button>
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={handleCancel}
+          disabled={isPending}
         >
           取消
         </Button>

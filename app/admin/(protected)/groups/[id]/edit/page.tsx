@@ -22,14 +22,14 @@ export default async function EditGroupPage({ params }: Params) {
     wechatWorkerEnabled: false,
   }
 
-  const workerCapabilities = Object.fromEntries(
-    registrations.map((r) => [r.platform, r.capabilities as string[]])
+  const workerRegsMap = Object.fromEntries(
+    registrations.map((r) => [r.platform, r])
   )
 
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-6">编辑群聊</h1>
-      <GroupForm group={group} settings={s} workerCapabilities={workerCapabilities} />
+      <GroupForm group={group} settings={s} workerRegistrations={workerRegsMap} />
     </div>
   )
 }

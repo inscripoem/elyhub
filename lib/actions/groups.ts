@@ -12,6 +12,8 @@ const groupFormSchema = z
   .object({
     platform: z.enum(["qq", "wechat", "other"]),
     alias: z.string().min(1, "别名不能为空"),
+    name: z.string().optional(),
+    avatarUrl: z.string().optional(),
     qqNumber: z.string().optional(),
     joinLink: z.string().optional(),
     adminQq: z.string().optional(),
@@ -25,11 +27,13 @@ const groupFormSchema = z
 
 export async function createGroup(formData: FormData) {
   const session = await requireAdmin()
-  if (!session) redirect("/admin/login")
+  if (!session) return { error: "Unauthorized" }
 
   const raw = {
     platform: formData.get("platform"),
     alias: formData.get("alias"),
+    name: formData.get("name") || undefined,
+    avatarUrl: formData.get("avatarUrl") || undefined,
     qqNumber: formData.get("qqNumber") || undefined,
     joinLink: formData.get("joinLink") || undefined,
     adminQq: formData.get("adminQq") || undefined,
@@ -47,12 +51,14 @@ export async function createGroup(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { platform, alias, qqNumber, joinLink, adminQq, useWorker, expireAt } =
+  const { platform, alias, name, avatarUrl, qqNumber, joinLink, adminQq, useWorker, expireAt } =
     parsed.data
 
   await db.insert(groups).values({
     platform,
     alias,
+    name: name || undefined,
+    avatarUrl: avatarUrl || undefined,
     qqNumber: platform === "qq" ? qqNumber : undefined,
     joinLink: joinLink || undefined,
     adminQq: platform === "qq" ? adminQq : undefined,
@@ -62,16 +68,18 @@ export async function createGroup(formData: FormData) {
 
   revalidatePath("/")
   revalidatePath("/admin/groups")
-  redirect("/admin/groups")
+  return { success: true }
 }
 
 export async function updateGroup(id: string, formData: FormData) {
   const session = await requireAdmin()
-  if (!session) redirect("/admin/login")
+  if (!session) return { error: "Unauthorized" }
 
   const raw = {
     platform: formData.get("platform"),
     alias: formData.get("alias"),
+    name: formData.get("name") || undefined,
+    avatarUrl: formData.get("avatarUrl") || undefined,
     qqNumber: formData.get("qqNumber") || undefined,
     joinLink: formData.get("joinLink") || undefined,
     adminQq: formData.get("adminQq") || undefined,
@@ -89,7 +97,7 @@ export async function updateGroup(id: string, formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { platform, alias, qqNumber, joinLink, adminQq, useWorker, expireAt } =
+  const { platform, alias, name, avatarUrl, qqNumber, joinLink, adminQq, useWorker, expireAt } =
     parsed.data
 
   await db
@@ -97,6 +105,8 @@ export async function updateGroup(id: string, formData: FormData) {
     .set({
       platform,
       alias,
+      name: name ?? null,
+      avatarUrl: avatarUrl ?? null,
       qqNumber: platform === "qq" ? (qqNumber ?? null) : null,
       joinLink: joinLink || null,
       adminQq: platform === "qq" ? (adminQq ?? null) : null,
@@ -107,7 +117,7 @@ export async function updateGroup(id: string, formData: FormData) {
 
   revalidatePath("/")
   revalidatePath("/admin/groups")
-  redirect("/admin/groups")
+  return { success: true }
 }
 
 export async function deleteGroup(id: string) {
