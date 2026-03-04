@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useTransition } from "react"
+import { useState, useMemo, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { Group, GroupCategory, Settings, WorkerRegistration } from "@/db/schema"
 import { getEffectiveStatus } from "@/lib/status"
@@ -127,6 +127,14 @@ export function GroupsPageClient({
       return true
     })
   }, [groups, search, platformFilter, categoryFilter, statusFilter, nowDate])
+
+  useEffect(() => {
+    if (filteredGroups.length === 0) return
+    const totalPages = Math.ceil(filteredGroups.length / PAGE_SIZE)
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [filteredGroups.length, currentPage])
 
   const pageGroups = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE
