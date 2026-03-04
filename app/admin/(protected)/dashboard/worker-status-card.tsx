@@ -17,6 +17,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
   name: "名称",
   avatar_url: "头像",
   join_link: "加群链接",
+  expire_at: "过期时间",
 }
 
 export function WorkerStatusCard({
