@@ -10,6 +10,8 @@ import { DeleteGroupButton } from "@/components/admin/delete-group-button"
 import { GroupForm } from "@/components/admin/group-form"
 import { SimplePagination } from "@/components/ui/simple-pagination"
 import { deleteGroups } from "@/lib/actions/groups"
+import { GroupsExportButton } from "@/components/admin/groups-export-button"
+import { GroupsImportDialog } from "@/components/admin/groups-import-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -176,10 +178,16 @@ export function GroupsPageClient({
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold">群聊管理</h1>
-        <Button size="sm" onClick={openAdd}>
-          <IconPlus size={16} />
-          添加群聊
-        </Button>
+        <div className="flex items-center gap-2">
+          <GroupsExportButton
+            filters={{ search, platformFilter, categoryFilter, statusFilter }}
+          />
+          <GroupsImportDialog onSuccess={() => router.refresh()} />
+          <Button size="sm" onClick={openAdd}>
+            <IconPlus size={16} />
+            添加群聊
+          </Button>
+        </div>
       </div>
 
       {/* Filter toolbar */}

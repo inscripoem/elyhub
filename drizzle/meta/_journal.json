@@ -15,6 +15,13 @@
       "when": 1772379986265,
       "tag": "0001_easy_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772633402556,
+      "tag": "0002_curved_mulholland_black",
+      "breakpoints": true
     }
   ]
 }
