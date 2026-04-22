@@ -46,6 +46,15 @@ function getEffectiveStatus(group, now): "ACTIVE" | "INVALID" | "UNKNOWN" {
 }
 ```
 
+**状态规则维护注意事项：**
+
+状态降级规则（QQ 过期→UNKNOWN，微信/其他过期→INVALID）目前硬编码在 `lib/status.ts` 的 `EXPIRED_STATUS_MAP` 中。后端 SQL 查询中的 `CASE WHEN` 表达式也有一份镜像实现（见 `lib/repositories/groups-search.ts`）。
+
+- 新增平台时，需要在 `EXPIRED_STATUS_MAP` 中添加该平台的过期降级状态
+- 修改规则时，必须同时更新 `lib/status.ts` 和 `lib/repositories/groups-search.ts` 两处，否则前后端筛选行为不一致
+
+**未来优化方向：** 考虑给 `groups` 表增加 PostgreSQL generated column `effective_status`，将规则下沉到 schema 层，彻底消除前后端两份实现。
+
 ### group_categories（群聊分组表）
 
 | 字段 | 类型 | 说明 |
@@ -136,4 +145,5 @@ bun run dev
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-23 | 补充状态规则维护注意事项，关联 `lib/repositories/groups-search.ts` 中的 SQL `CASE WHEN` 实现 |
 | 2026-03-01 | 初次生成 |

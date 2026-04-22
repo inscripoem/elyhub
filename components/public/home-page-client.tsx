@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import {
@@ -11,7 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { GroupSection } from "@/components/public/group-section"
-import { getEffectiveStatus } from "@/lib/status"
 import { IconInfoCircle, IconSearch } from "@tabler/icons-react"
 import type { Group, GroupCategory } from "@/db/schema"
 
@@ -19,6 +19,9 @@ interface HomePageClientProps {
   groups: Group[]
   categories: GroupCategory[]
   announcement: string | null | undefined
+  initialSearch: string
+  initialPlatform: string
+  initialStatus: string
 }
 
 const PLATFORM_OPTIONS = [
@@ -35,50 +38,68 @@ const STATUS_OPTIONS = [
   { value: "UNKNOWN", label: "未知" },
 ]
 
+function buildQueryString(search: string, platform: string, status: string) {
+  const params = new URLSearchParams()
+  if (search.trim()) params.set("search", search.trim())
+  if (platform !== "all") params.set("platform", platform)
+  if (status !== "all") params.set("status", status)
+  const query = params.toString()
+  return query ? `/?${query}` : "/"
+}
+
 export function HomePageClient({
   groups,
   categories,
   announcement,
+  initialSearch,
+  initialPlatform,
+  initialStatus,
 }: HomePageClientProps) {
-  const [search, setSearch] = useState("")
-  const [platformFilter, setPlatformFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const router = useRouter()
+  const [search, setSearch] = useState(initialSearch)
+  const [platformFilter, setPlatformFilter] = useState(initialPlatform)
+  const [statusFilter, setStatusFilter] = useState(initialStatus)
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const now = useMemo(() => new Date(), [])
-
-  const filteredGroups = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return groups.filter((g) => {
-      if (q && !g.alias.toLowerCase().includes(q) && !(g.name?.toLowerCase().includes(q))) {
-        return false
-      }
-      if (platformFilter !== "all" && g.platform !== platformFilter) return false
-      if (statusFilter !== "all") {
-        const effective = getEffectiveStatus(g, now)
-        if (effective !== statusFilter) return false
-      }
-      return true
-    })
-  }, [groups, search, platformFilter, statusFilter, now])
 
   const { sections, uncategorized } = useMemo(() => {
     const sortedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder)
     const sections = sortedCategories
       .map((cat) => ({
         category: cat,
-        groups: filteredGroups.filter((g) => g.categoryId === cat.id),
+        groups: groups.filter((g) => g.categoryId === cat.id),
       }))
       .filter((s) => s.groups.length > 0)
 
     const categoryIds = new Set(categories.map((c) => c.id))
-    const uncategorized = filteredGroups.filter(
+    const uncategorized = groups.filter(
       (g) => !g.categoryId || !categoryIds.has(g.categoryId)
     )
 
     return { sections, uncategorized }
-  }, [filteredGroups, categories])
+  }, [groups, categories])
 
   const hasCategories = categories.length > 0
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      router.replace(buildQueryString(value, platformFilter, statusFilter))
+    }, 300)
+  }
+
+  function handlePlatformChange(value: string) {
+    setPlatformFilter(value)
+    router.replace(buildQueryString(search, value, statusFilter))
+  }
+
+  function handleStatusChange(value: string) {
+    setStatusFilter(value)
+    router.replace(buildQueryString(search, platformFilter, value))
+  }
 
   return (
     <div>
@@ -101,11 +122,11 @@ export function HomePageClient({
           <Input
             placeholder="搜索群聊..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-8"
           />
         </div>
-        <Select value={platformFilter} onValueChange={setPlatformFilter}>
+        <Select value={platformFilter} onValueChange={handlePlatformChange}>
           <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
@@ -117,7 +138,7 @@ export function HomePageClient({
             ))}
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
@@ -131,7 +152,7 @@ export function HomePageClient({
         </Select>
       </div>
 
-      {filteredGroups.length === 0 && (
+      {groups.length === 0 && (
         <div className="border rounded-lg py-12 text-center text-muted-foreground text-sm">
           没有匹配的群聊
         </div>
@@ -152,8 +173,8 @@ export function HomePageClient({
           )}
         </>
       ) : (
-        filteredGroups.length > 0 && (
-          <GroupSection title="全部群聊" groups={filteredGroups} now={now} />
+        groups.length > 0 && (
+          <GroupSection title="全部群聊" groups={groups} now={now} />
         )
       )}
     </div>

@@ -45,8 +45,10 @@ app/admin/
 ### 群聊管理（核心）
 
 `app/admin/(protected)/groups/page.tsx` 是数据入口，传递给 `GroupsPageClient`：
-- 数据：`groups`、`categories`、`settings`（Worker 开关）、`workerRegistrations`
-- 客户端 `GroupsPageClient` 处理：搜索、筛选（平台/状态/分组）、排序、分页（PAGE_SIZE=20）、批量删除、Sheet 内联编辑
+- 数据：`categories`、`settings`（Worker 开关）、`workerRegistrations`
+- 客户端 `GroupsPageClient` 通过 `fetch('/api/admin/groups?...')` 按需获取群聊数据（搜索/筛选/分页参数传给后端）
+- 客户端处理：搜索、筛选（平台/状态/分组）、分页（PAGE_SIZE=20）、批量删除、Sheet 内联编辑
+- 筛选/分页变化时自动重新 fetch，新增/编辑成功后 `router.refresh() + fetchData()`
 
 `GroupForm` (`components/admin/group-form.tsx`) 用于新建和编辑：
 - 平台切换时动态显示/隐藏字段（QQ 群号仅 QQ 平台显示）
@@ -114,9 +116,11 @@ A: `expireAt` 过期时实际状态与存储状态不同（微信群过期变 IN
 | `lib/actions/groups.ts` | 群聊 Server Actions |
 | `lib/actions/group-categories.ts` | 分组 Server Actions |
 | `lib/actions/settings.ts` | 设置 Server Actions |
+| `app/api/admin/groups/route.ts` | 管理后台分页 API（`searchGroupsPaginated`） |
 
 ## 变更记录 (Changelog)
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-23 | 群聊列表改为 API 驱动（`fetch /api/admin/groups`），服务端不再全量传递 groups |
 | 2026-03-01 | 初次生成 |

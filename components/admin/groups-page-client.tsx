@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useTransition, useEffect } from "react"
+import { useState, useMemo, useTransition, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import type { Group, GroupCategory, Settings, WorkerRegistration } from "@/db/schema"
 import { getEffectiveStatus } from "@/lib/status"
@@ -56,15 +56,47 @@ import {
 
 const PAGE_SIZE = 20
 
+/** API 返回的序列化群聊对象（日期为 ISO 字符串） */
+interface ApiGroup {
+  id: string
+  categoryId: string | null
+  platform: Group["platform"]
+  alias: string
+  name: string | null
+  qqNumber: string | null
+  joinLink: string | null
+  adminQq: string | null
+  status: Group["status"]
+  expireAt: string | null
+  avatarUrl: string | null
+  useWorker: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+interface ApiMeta {
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+function parseApiGroup(raw: ApiGroup): Group {
+  return {
+    ...raw,
+    expireAt: raw.expireAt ? new Date(raw.expireAt) : null,
+    createdAt: new Date(raw.createdAt),
+    updatedAt: new Date(raw.updatedAt),
+  }
+}
+
 interface GroupsPageClientProps {
-  groups: Group[]
   categories: GroupCategory[]
   settings: Pick<Settings, "qqWorkerEnabled" | "wechatWorkerEnabled">
   workerRegistrations: Record<string, WorkerRegistration>
 }
 
 export function GroupsPageClient({
-  groups,
   categories,
   settings,
   workerRegistrations,
@@ -82,13 +114,59 @@ export function GroupsPageClient({
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
 
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
 
+  // Data state (fetched from API)
+  const [groups, setGroups] = useState<Group[]>([])
+  const [meta, setMeta] = useState<ApiMeta>({
+    total: 0,
+    page: 1,
+    pageSize: PAGE_SIZE,
+    totalPages: 0,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   const nowDate = useMemo(() => new Date(), [])
+
+  // Fetch data from backend API
+  const fetchData = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set("page", String(currentPage))
+      params.set("pageSize", String(PAGE_SIZE))
+      if (search.trim()) params.set("search", search.trim())
+      if (platformFilter !== "all") params.set("platform", platformFilter)
+      if (categoryFilter !== "all") params.set("categoryId", categoryFilter)
+      if (statusFilter !== "all") params.set("status", statusFilter)
+
+      const res = await fetch(`/api/admin/groups?${params.toString()}`)
+      if (!res.ok) {
+        console.error("Failed to fetch groups:", await res.text())
+        return
+      }
+
+      const json = await res.json()
+      setGroups((json.data as ApiGroup[]).map(parseApiGroup))
+      setMeta(json.meta as ApiMeta)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentPage, search, platformFilter, statusFilter, categoryFilter])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+    setSelectedIds(new Set())
+  }, [search, platformFilter, statusFilter, categoryFilter])
 
   function openAdd() {
     setEditingGroup(null)
@@ -103,55 +181,20 @@ export function GroupsPageClient({
   function handleSuccess() {
     setSheetOpen(false)
     router.refresh()
+    fetchData()
   }
 
-  function resetView() {
-    setCurrentPage(1)
-    setSelectedIds(new Set())
-  }
-
-  const filteredGroups = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return groups.filter((g) => {
-      if (q && !g.alias.toLowerCase().includes(q) && !(g.name?.toLowerCase().includes(q))) return false
-      if (platformFilter !== "all" && g.platform !== platformFilter) return false
-      if (categoryFilter === "none") {
-        if (g.categoryId !== null) return false
-      } else if (categoryFilter !== "all") {
-        if (g.categoryId !== categoryFilter) return false
-      }
-      if (statusFilter !== "all") {
-        const effective = getEffectiveStatus(g, nowDate)
-        if (effective !== statusFilter) return false
-      }
-      return true
-    })
-  }, [groups, search, platformFilter, categoryFilter, statusFilter, nowDate])
-
-  useEffect(() => {
-    if (filteredGroups.length === 0) return
-    const totalPages = Math.ceil(filteredGroups.length / PAGE_SIZE)
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [filteredGroups.length, currentPage])
-
-  const pageGroups = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE
-    return filteredGroups.slice(start, start + PAGE_SIZE)
-  }, [filteredGroups, currentPage])
-
-  const allPageSelected = pageGroups.length > 0 && pageGroups.every((g) => selectedIds.has(g.id))
-  const somePageSelected = pageGroups.some((g) => selectedIds.has(g.id))
+  const allPageSelected = groups.length > 0 && groups.every((g) => selectedIds.has(g.id))
+  const somePageSelected = groups.some((g) => selectedIds.has(g.id))
 
   function toggleSelectAll() {
     if (allPageSelected) {
       const next = new Set(selectedIds)
-      pageGroups.forEach((g) => next.delete(g.id))
+      groups.forEach((g) => next.delete(g.id))
       setSelectedIds(next)
     } else {
       const next = new Set(selectedIds)
-      pageGroups.forEach((g) => next.add(g.id))
+      groups.forEach((g) => next.add(g.id))
       setSelectedIds(next)
     }
   }
@@ -168,7 +211,7 @@ export function GroupsPageClient({
     startTransition(async () => {
       await deleteGroups(ids)
       setSelectedIds(new Set())
-      router.refresh()
+      fetchData()
     })
   }
 
@@ -210,7 +253,6 @@ export function GroupsPageClient({
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              resetView()
             }}
             className="pl-8"
           />
@@ -218,10 +260,7 @@ export function GroupsPageClient({
         {categories.length > 0 && (
           <Select
             value={categoryFilter}
-            onValueChange={(v) => {
-              setCategoryFilter(v)
-              resetView()
-            }}
+            onValueChange={setCategoryFilter}
           >
             <SelectTrigger className="w-36">
               <SelectValue placeholder="分组" />
@@ -239,10 +278,7 @@ export function GroupsPageClient({
         )}
         <Select
           value={platformFilter}
-          onValueChange={(v) => {
-            setPlatformFilter(v)
-            resetView()
-          }}
+          onValueChange={setPlatformFilter}
         >
           <SelectTrigger className="w-32">
             <SelectValue placeholder="平台" />
@@ -256,10 +292,7 @@ export function GroupsPageClient({
         </Select>
         <Select
           value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v)
-            resetView()
-          }}
+          onValueChange={setStatusFilter}
         >
           <SelectTrigger className="w-32">
             <SelectValue placeholder="状态" />
@@ -334,13 +367,22 @@ export function GroupsPageClient({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageGroups.length === 0 ? (
+            {isLoading ? (
               <TableRow>
                 <TableCell
                   colSpan={categories.length > 0 ? 9 : 8}
                   className="text-center text-muted-foreground py-12"
                 >
-                  {groups.length === 0 ? (
+                  加载中...
+                </TableCell>
+              </TableRow>
+            ) : groups.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={categories.length > 0 ? 9 : 8}
+                  className="text-center text-muted-foreground py-12"
+                >
+                  {meta.total === 0 ? (
                     <>
                       暂无群聊，
                       <button onClick={openAdd} className="text-primary underline">
@@ -353,7 +395,7 @@ export function GroupsPageClient({
                 </TableCell>
               </TableRow>
             ) : (
-              pageGroups.map((group) => {
+              groups.map((group) => {
                 const effectiveStatus = getEffectiveStatus(group, nowDate)
                 return (
                   <TableRow key={group.id}>
@@ -415,7 +457,7 @@ export function GroupsPageClient({
 
       <SimplePagination
         currentPage={currentPage}
-        totalItems={filteredGroups.length}
+        totalItems={meta.total}
         pageSize={PAGE_SIZE}
         onPageChange={handlePageChange}
       />

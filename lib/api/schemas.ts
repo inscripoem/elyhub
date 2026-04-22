@@ -38,3 +38,15 @@ export const ErrorBody = t.Object(
   { error: t.String({ description: "Human-readable error message" }) },
   { $id: "ErrorBody" }
 )
+
+export const WorkerGroupQuery = t.Object({
+  platform: WorkerPlatform,
+  search: t.Optional(
+    t.String({ description: "Fuzzy search on alias, name, or qqNumber" })
+  ),
+  status: t.Optional(
+    t.Union([t.Literal("ACTIVE"), t.Literal("INVALID"), t.Literal("UNKNOWN")], {
+      description: "Filter by effective status (accounts for expireAt)",
+    })
+  ),
+})

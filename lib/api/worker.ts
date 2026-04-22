@@ -1,14 +1,14 @@
 import { Elysia, t } from "elysia"
 import {
-  listGroupsByPlatform,
   listGroupsWithMissingFields,
   updateGroupByPlatform,
   batchUpdateGroupsByPlatform,
   type GroupSelect,
 } from "@/lib/repositories/groups"
+import { searchGroups } from "@/lib/repositories/groups-search"
 import { getSettings } from "@/lib/repositories/settings"
 import { upsertWorkerRegistration } from "@/lib/repositories/worker-registrations"
-import { WorkerPlatform, GroupRow, ErrorBody, StatusEnum } from "./schemas"
+import { WorkerPlatform, GroupRow, ErrorBody, StatusEnum, WorkerGroupQuery } from "./schemas"
 
 type WorkerPlatformType = "qq" | "wechat"
 
@@ -110,12 +110,16 @@ export const workerPlugin = new Elysia({
         set.status = 403
         return { error: "Platform mismatch" } as never
       }
-      const rows = await listGroupsByPlatform(workerPlatform)
-      return { data: rows.map(serializeGroup) }
+      const { items } = await searchGroups({
+        platform: workerPlatform,
+        search: query.search,
+        status: query.status,
+      })
+      return { data: items.map(serializeGroup) }
     },
     {
       headers: workerHeaders,
-      query: t.Object({ platform: WorkerPlatform }),
+      query: WorkerGroupQuery,
       response: {
         200: t.Object({ data: t.Array(GroupRow) }),
         401: ErrorBody,
@@ -123,7 +127,8 @@ export const workerPlugin = new Elysia({
       },
       detail: {
         summary: "List groups for platform",
-        description: "Returns all groups belonging to the authenticated worker platform.",
+        description:
+          "Returns groups belonging to the authenticated worker platform. Supports optional search (fuzzy on alias/name/qqNumber) and status filtering.",
         operationId: "workerListGroups",
       },
     }

@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { db } from "@/lib/db"
-import { groups, groupCategories, settings } from "@/db/schema"
+import { groupCategories, settings } from "@/db/schema"
 import { asc } from "drizzle-orm"
+import { searchGroups } from "@/lib/repositories/groups-search"
 import { HomePageClient } from "@/components/public/home-page-client"
 import type { Metadata } from "next"
 import { checkInitialized } from "@/lib/actions/setup"
@@ -14,12 +15,28 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: row?.siteTitle ?? "ElyHub" }
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const initialized = await checkInitialized()
   if (!initialized) redirect("/setup")
 
-  const [allGroups, allCategories, siteSettings] = await Promise.all([
-    db.select().from(groups).orderBy(groups.createdAt),
+  const params = await searchParams
+
+  const search = typeof params.search === "string" ? params.search : undefined
+  const platform =
+    params.platform === "qq" || params.platform === "wechat" || params.platform === "other"
+      ? params.platform
+      : undefined
+  const status =
+    params.status === "ACTIVE" || params.status === "INVALID" || params.status === "UNKNOWN"
+      ? params.status
+      : undefined
+
+  const [filteredResult, allCategories, siteSettings] = await Promise.all([
+    searchGroups({ search, platform, status }),
     db.select().from(groupCategories).orderBy(asc(groupCategories.sortOrder)),
     db.select().from(settings).limit(1),
   ])
@@ -40,14 +57,17 @@ export default async function HomePage() {
           <h1 className="text-2xl font-bold">{site?.siteTitle ?? "ElyHub"}</h1>
         </div>
         <p className="text-muted-foreground text-sm">
-          共 {allGroups.length} 个群聊
+          共 {filteredResult.total} 个群聊
         </p>
       </header>
 
       <HomePageClient
-        groups={allGroups}
+        groups={filteredResult.items}
         categories={allCategories}
         announcement={site?.siteAnnouncement}
+        initialSearch={search ?? ""}
+        initialPlatform={platform ?? "all"}
+        initialStatus={status ?? "all"}
       />
 
       <footer className="mt-8 text-center text-xs text-muted-foreground">

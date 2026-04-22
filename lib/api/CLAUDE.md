@@ -39,7 +39,7 @@ X-Worker-Platform: qq | wechat
 | GET | `/api/health` | 健康检查，无需鉴权 |
 | GET | `/api/docs` | OpenAPI Scalar UI |
 | POST | `/api/worker/heartbeat` | Worker 心跳，更新注册信息 |
-| GET | `/api/worker/groups?platform=qq` | 获取平台所有群聊 |
+| GET | `/api/worker/groups?platform=qq&search=...&status=...` | 获取平台群聊（支持搜索/状态筛选） |
 | GET | `/api/worker/groups/partial?platform=qq&missing=status,name` | 获取缺字段群聊 |
 | PATCH | `/api/worker/groups/:id` | 更新单条群聊 |
 | POST | `/api/worker/groups/batch` | 批量更新群聊（1-100条，事务） |
@@ -122,4 +122,5 @@ GroupRow schema（来自 `lib/api/schemas.ts`）：
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-23 | `GET /api/worker/groups` 增加 `search`（模糊搜索）和 `status`（有效状态筛选）参数；清理旧版 Route Handler 死代码 |
 | 2026-03-01 | 初次生成 |

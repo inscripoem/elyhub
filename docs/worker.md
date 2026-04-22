@@ -120,13 +120,15 @@ Worker 启动时及每次循环时调用，上报存活状态与能力声明。E
 
 ### `GET /api/worker/groups?platform={platform}`
 
-获取该平台下所有群聊的完整信息。
+获取该平台下所有群聊的完整信息。支持可选的搜索和状态筛选。
 
 **Query 参数：**
 
-| 参数 | 说明 |
-|------|------|
-| `platform` | 必须与认证 Token 对应的平台一致 |
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `platform` | `string` | 是 | 必须与认证 Token 对应的平台一致 |
+| `search` | `string` | 否 | 模糊搜索别名、名称或 QQ 群号 |
+| `status` | `"ACTIVE" \| "INVALID" \| "UNKNOWN"` | 否 | 按有效状态筛选（已考虑 `expireAt` 过期后的状态降级） |
 
 **响应：**
 
@@ -261,7 +263,9 @@ Worker 上报的 `status` 表达的是 Worker **主动判断的结论**：
 
 `UNKNOWN` 是一个合法的主动上报值，表示"我查过了，但不确定"，有别于"我还没查"或"我的数据已经过期"。ElyHub 也会在读取时根据 `expireAt` **推导出** `UNKNOWN`（见下方各平台说明），推导结果与数据库存储的 `status` 无关。
 
-> **重要：** 数据库中的 `status` 字段始终存储 **Worker 最后一次上报的值**，不随时间自动变化。ElyHub 公开页和管理后台展示的是经过 `expireAt` 推导后的**展示态**，两者可能不同。直接查询数据库或通过 Worker API 读取的 `status` 均为原始上报值，不代表当前实际展示状态。
+> **重要：** 数据库中的 `status` 字段始终存储 **Worker 最后一次上报的值**，不随时间自动变化。ElyHub 公开页和管理后台展示的是经过 `expireAt` 推导后的**展示态**，两者可能不同。
+>
+> **Worker API 返回的 `status` 为原始上报值**，不经过 `expireAt` 推导。Worker 可以通过 `GET /api/worker/groups?status=ACTIVE` 筛选出有效状态为 ACTIVE 的群聊（后端会自动根据 `expireAt` 计算有效状态后过滤），但响应中每条数据的 `status` 字段仍是原始存储值。
 
 ### QQ 平台 — 心跳模式
 

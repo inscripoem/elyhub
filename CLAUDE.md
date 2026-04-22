@@ -131,6 +131,7 @@ graph TD
 | `lib/status.ts` | `getEffectiveStatus()` 和 `isWorkerManaged()` 工具函数 | - |
 | `lib/worker-auth.ts` | Worker 请求鉴权（Bearer token + X-Worker-Platform 头） | - |
 | `lib/worker-utils.ts` | `isWorkerOnline()` Worker 在线状态判断 | - |
+| `lib/repositories/groups-search.ts` | 群聊搜索/筛选/分页 repository（供公开页、Worker API、管理后台） | - |
 | `db/schema/` | Drizzle 表定义（groups、settings、group-categories 等） | [查看](./db/CLAUDE.md) |
 | `drizzle/` | 自动生成的迁移 SQL 和 meta/_journal.json | - |
 | `components/ui/` | shadcn/ui 组件库 | - |
@@ -252,4 +253,5 @@ docker compose up -d
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-23 | 群聊搜索/筛选/分页后端化；新增 `lib/repositories/groups-search.ts`；清理旧版 API 死代码；Worker API 增加 `search`/`status` 参数 |
 | 2026-03-01 | 初次生成 CLAUDE.md，全量扫描项目结构 |
