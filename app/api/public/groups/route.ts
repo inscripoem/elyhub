@@ -17,6 +17,7 @@ function serializeGroup(row: Group) {
     useWorker: row.useWorker ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
   }
 }
 

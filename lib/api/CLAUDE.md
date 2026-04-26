@@ -65,6 +65,7 @@ X-Worker-Platform: qq | wechat
 - 请求体：数组，1-100 条
 - 事务执行，返回 `{ updated: string[], notFound: string[] }`
 - 仅更新与 Worker 平台匹配的群聊
+- 每次更新都会同时写入 `lastSyncedAt` 为当前时间
 
 ## 关键依赖与配置
 
@@ -94,6 +95,7 @@ GroupRow schema（来自 `lib/api/schemas.ts`）：
   useWorker: boolean | null
   createdAt: string (date-time)
   updatedAt: string (date-time)
+  lastSyncedAt: string | null (date-time)
 }
 ```
 
@@ -122,5 +124,6 @@ GroupRow schema（来自 `lib/api/schemas.ts`）：
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-26 | Worker 同步更新时自动注入 `lastSyncedAt`；GroupRow schema 添加 `lastSyncedAt` 字段 |
 | 2026-04-23 | `GET /api/worker/groups` 增加 `search`（模糊搜索）和 `status`（有效状态筛选）参数；清理旧版 Route Handler 死代码 |
 | 2026-03-01 | 初次生成 |

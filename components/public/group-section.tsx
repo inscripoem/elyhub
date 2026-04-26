@@ -48,7 +48,7 @@ export function GroupSection({ title, groups, now }: GroupSectionProps) {
               return (
                 <TableRow key={group.id} className="hover:bg-muted/30">
                   <TableCell>
-                    <StatusBadge status={effectiveStatus} />
+                    <StatusBadge status={effectiveStatus} lastSyncedAt={group.lastSyncedAt} />
                   </TableCell>
                   <TableCell>
                     <PlatformIcon platform={group.platform} showLabel />

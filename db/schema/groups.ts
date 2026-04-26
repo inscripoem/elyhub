@@ -33,6 +33,7 @@ export const groups = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   },
   (t) => [
     index("groups_category_idx").on(t.categoryId),

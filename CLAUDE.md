@@ -253,5 +253,6 @@ docker compose up -d
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-26 | groups 表添加 `lastSyncedAt` 字段；Worker 同步时自动记录；StatusBadge 支持 Tooltip 显示同步时间 |
 | 2026-04-23 | 群聊搜索/筛选/分页后端化；新增 `lib/repositories/groups-search.ts`；清理旧版 API 死代码；Worker API 增加 `search`/`status` 参数 |
 | 2026-03-01 | 初次生成 CLAUDE.md，全量扫描项目结构 |

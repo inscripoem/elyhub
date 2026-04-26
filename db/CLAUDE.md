@@ -33,6 +33,7 @@
 | useWorker | boolean nullable | 三值：true=强制开、false=强制关、null=跟随全局 |
 | createdAt | timestamp tz | 创建时间 |
 | updatedAt | timestamp tz | 更新时间（`$onUpdate` 自动更新） |
+| lastSyncedAt | timestamp tz | Worker 最后一次同步时间（仅 Worker 同步时写入，默认 `null`） |
 
 **索引：** category_idx、platform_idx、status_idx、expire_at_idx、platform_status_idx（复合）
 
@@ -124,6 +125,7 @@ bun run dev
 |------|------|------|
 | 0000 | `0000_last_garia.sql` | 初始建表：groups、settings、worker_registrations、auth 表 |
 | 0001 | `0001_easy_xorn.sql` | 添加 group_categories 表；groups 加 category_id；settings 加 site_announcement |
+| 0003 | `0003_vengeful_gateway.sql` | groups 表添加 `last_synced_at` 字段 |
 
 ## 相关文件清单
 
@@ -145,5 +147,6 @@ bun run dev
 
 | 日期 | 说明 |
 |------|------|
+| 2026-04-26 | groups 表添加 `last_synced_at` 字段；Worker 同步时自动记录；StatusBadge 支持 Tooltip 显示同步时间 |
 | 2026-04-23 | 补充状态规则维护注意事项，关联 `lib/repositories/groups-search.ts` 中的 SQL `CASE WHEN` 实现 |
 | 2026-03-01 | 初次生成 |

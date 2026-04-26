@@ -30,6 +30,7 @@ export const GroupRow = t.Object(
     useWorker: t.Nullable(t.Boolean()),
     createdAt: t.String({ format: "date-time" }),
     updatedAt: t.String({ format: "date-time" }),
+    lastSyncedAt: t.Nullable(t.String({ format: "date-time" })),
   },
   { $id: "GroupRow" }
 )

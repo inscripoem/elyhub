@@ -44,6 +44,7 @@ function serializeGroup(row: GroupSelect) {
     expireAt: row.expireAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
   }
 }
 
@@ -175,8 +176,9 @@ export const workerPlugin = new Elysia({
       if ("avatarUrl" in body) updates.avatarUrl = body.avatarUrl ?? null
       if ("joinLink" in body) updates.joinLink = body.joinLink ?? null
       if ("expireAt" in body) updates.expireAt = body.expireAt ? new Date(body.expireAt) : null
+      updates.lastSyncedAt = new Date()
 
-      if (Object.keys(updates).length === 0) {
+      if (Object.keys(updates).length === 1) {
         set.status = 400
         return { error: "No update fields provided" } as never
       }
@@ -221,6 +223,7 @@ export const workerPlugin = new Elysia({
       const items = body.map(({ expireAt, ...rest }) => ({
         ...rest,
         expireAt: expireAt != null ? new Date(expireAt) : expireAt,
+        lastSyncedAt: new Date(),
       }))
       const results = await batchUpdateGroupsByPlatform(workerPlatform, items as never)
       return { ok: true, ...results }

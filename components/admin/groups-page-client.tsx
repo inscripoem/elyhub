@@ -72,6 +72,7 @@ interface ApiGroup {
   useWorker: boolean | null
   createdAt: string
   updatedAt: string
+  lastSyncedAt: string | null
 }
 
 interface ApiMeta {
@@ -87,6 +88,7 @@ function parseApiGroup(raw: ApiGroup): Group {
     expireAt: raw.expireAt ? new Date(raw.expireAt) : null,
     createdAt: new Date(raw.createdAt),
     updatedAt: new Date(raw.updatedAt),
+    lastSyncedAt: raw.lastSyncedAt ? new Date(raw.lastSyncedAt) : null,
   }
 }
 
@@ -407,7 +409,7 @@ export function GroupsPageClient({
                       />
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={effectiveStatus} />
+                      <StatusBadge status={effectiveStatus} lastSyncedAt={group.lastSyncedAt} />
                     </TableCell>
                     <TableCell>
                       <PlatformIcon platform={group.platform} showLabel />
