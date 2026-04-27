@@ -125,6 +125,7 @@ bun run dev
 |------|------|------|
 | 0000 | `0000_last_garia.sql` | 初始建表：groups、settings、worker_registrations、auth 表 |
 | 0001 | `0001_easy_xorn.sql` | 添加 group_categories 表；groups 加 category_id；settings 加 site_announcement |
+| 0002 | `0002_curved_mulholland_black.sql` | 添加 group_import_jobs 表及导入相关枚举 |
 | 0003 | `0003_vengeful_gateway.sql` | groups 表添加 `last_synced_at` 字段 |
 
 ## 相关文件清单

@@ -23,15 +23,14 @@ app/
 │   └── (protected)/        # 受保护页面（见 app/admin/CLAUDE.md）
 └── api/
     ├── auth/[...all]/route.ts    # Better Auth 端点
-    ├── [[...slugs]]/route.ts     # ElysiaJS Worker API（见 lib/api/CLAUDE.md）
     ├── admin/                    # Admin Route Handler（分页查询、Excel 导出）
     │   ├── groups/route.ts       # GET 分页列表（供管理后台表格）
     │   ├── groups/export/route.ts       # GET Excel 导出
     │   └── groups/import-template/route.ts  # GET 导入模板
     ├── public/                   # 公开 API（无需鉴权）
     │   └── groups/route.ts       # GET 筛选列表（供公开首页）
-    ├── health/route.ts           # 直接实现的简单健康检查
-    └── [[...slugs]]/route.ts     # ElysiaJS Worker API（见 lib/api/CLAUDE.md）
+    ├── health/route.ts           # 原生健康检查
+    └── [[...slugs]]/route.ts     # ElysiaJS Worker API + OpenAPI 文档（见 lib/api/CLAUDE.md）
 ```
 
 ## 入口与启动

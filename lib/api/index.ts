@@ -1,6 +1,5 @@
 import { Elysia } from "elysia"
 import { openapi } from "@elysiajs/openapi"
-import { healthPlugin } from "./health"
 import { workerPlugin } from "./worker"
 
 export const app = new Elysia({ prefix: "/api" })
@@ -16,7 +15,6 @@ export const app = new Elysia({ prefix: "/api" })
             "Worker synchronization API for ElyHub.\n\nRequires `Authorization: Bearer <secret>` and `X-Worker-Platform: qq|wechat`.",
         },
         tags: [
-          { name: "Health", description: "System health and liveness checks" },
           { name: "Worker", description: "Worker node sync endpoints." },
         ],
         components: {
@@ -33,5 +31,4 @@ export const app = new Elysia({ prefix: "/api" })
       scalar: { theme: "purple", defaultOpenAllTags: true },
     })
   )
-  .use(healthPlugin)
   .use(workerPlugin)

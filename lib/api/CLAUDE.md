@@ -11,7 +11,6 @@
 - 查询平台群聊列表（全量 / 缺字段过滤）
 - 单条 / 批量更新群聊信息（状态、名称、头像、链接、过期时间）
 - 查询 Worker 配置（是否已启用）
-- 健康检查端点
 - OpenAPI 文档（Scalar UI）
 
 ## 入口与启动
@@ -19,7 +18,6 @@
 ```
 app/api/[[...slugs]]/route.ts
   └── lib/api/index.ts          # Elysia app，prefix=/api
-       ├── lib/api/health.ts    # GET /api/health
        └── lib/api/worker.ts    # /api/worker/* 所有端点
 ```
 
@@ -36,7 +34,6 @@ X-Worker-Platform: qq | wechat
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/health` | 健康检查，无需鉴权 |
 | GET | `/api/docs` | OpenAPI Scalar UI |
 | POST | `/api/worker/heartbeat` | Worker 心跳，更新注册信息 |
 | GET | `/api/worker/groups?platform=qq&search=...&status=...` | 获取平台群聊（支持搜索/状态筛选） |
@@ -112,8 +109,7 @@ GroupRow schema（来自 `lib/api/schemas.ts`）：
 | 文件 | 说明 |
 |------|------|
 | `app/api/[[...slugs]]/route.ts` | Next.js 入口，转发给 Elysia |
-| `lib/api/index.ts` | Elysia app，挂载 health + worker plugin |
-| `lib/api/health.ts` | GET /api/health |
+| `lib/api/index.ts` | Elysia app，挂载 worker plugin |
 | `lib/api/worker.ts` | Worker 所有端点 |
 | `lib/api/schemas.ts` | TypeBox schema 定义 |
 | `lib/repositories/groups.ts` | 群聊数据访问 |
